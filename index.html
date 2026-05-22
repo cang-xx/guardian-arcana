@@ -627,6 +627,135 @@
       height: 1px;
       background: linear-gradient(90deg, transparent, rgba(154,123,63,0.4), transparent);
     }
+
+    @media (min-width: 769px) {
+      #welcome-layer {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+      }
+    }
+
+    /* ── Mobile homepage: one screen, no clip ── */
+    @media (max-width: 768px) {
+      #welcome-layer {
+        height: 100dvh;
+        max-height: 100dvh;
+        min-height: 100dvh;
+        overflow: hidden;
+        padding-top: 2rem;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+
+      #welcome-layer > header {
+        top: 0.65rem;
+        left: 0.75rem;
+      }
+
+      .hero-block {
+        min-height: 0;
+        flex: 0 1 auto;
+        padding: 0.25rem 0.75rem 0.2rem;
+      }
+
+      .hero-block .lunar-icon {
+        margin-bottom: 0.35rem !important;
+      }
+
+      .hero-block .lunar-icon svg {
+        width: 44px;
+        height: 44px;
+      }
+
+      .hero-block .ornament-line.mb-6 {
+        width: 5rem;
+        margin-bottom: 0.45rem !important;
+      }
+
+      .hero-block .ornament-line.mt-8 {
+        width: 3.5rem;
+        margin-top: 0.4rem !important;
+      }
+
+      .hero-block h1 {
+        font-size: 0.92rem !important;
+        letter-spacing: 0.14em !important;
+      }
+
+      .hero-block blockquote {
+        margin-top: 0.35rem !important;
+      }
+
+      .hero-block blockquote .text-sm {
+        font-size: 0.72rem !important;
+      }
+
+      .hero-block blockquote .text-xs {
+        font-size: 0.65rem !important;
+        margin-top: 0.15rem !important;
+      }
+
+      .arcana-watermark {
+        font-size: clamp(2.5rem, 12vw, 3.5rem) !important;
+      }
+
+      .card-viewport {
+        flex: 1 1 0;
+        min-height: 0;
+        max-height: none;
+        overflow: hidden;
+        align-items: center;
+        padding: 6px 0 2px;
+      }
+
+      .card-track {
+        padding: 8px 0;
+        gap: 10px;
+      }
+
+      .tarot-card {
+        width: clamp(46px, 12.8vw, 64px);
+      }
+
+      .tarot-card .card-glow {
+        inset: -22%;
+      }
+
+      #welcome-layer .welcome-footer {
+        flex: 0 0 auto;
+        padding-top: 0.2rem;
+        padding-bottom: max(0.45rem, env(safe-area-inset-bottom, 0px));
+      }
+
+      #welcome-layer .welcome-footer .hint-text {
+        font-size: 9px !important;
+        letter-spacing: 0.2em !important;
+      }
+    }
+
+    @media (max-width: 768px) and (max-height: 680px) {
+      .hero-block .lunar-icon svg {
+        width: 36px;
+        height: 36px;
+      }
+
+      .hero-block h1 {
+        font-size: 0.82rem !important;
+      }
+
+      .card-viewport {
+        padding: 4px 0 0;
+      }
+
+      .tarot-card {
+        width: clamp(42px, 11.5vw, 56px);
+      }
+
+      .card-track {
+        padding: 6px 0;
+        gap: 8px;
+      }
+    }
   </style>
 </head>
 <body class="text-stone-300 font-body antialiased">
@@ -635,7 +764,7 @@
   <div class="vignette" aria-hidden="true"></div>
   <div id="smoke-overlay" aria-hidden="true"></div>
 
-  <div id="welcome-layer" class="relative z-10 min-h-screen flex flex-col">
+  <div id="welcome-layer" class="relative z-10 min-h-screen h-screen max-h-screen flex flex-col overflow-hidden">
 
     <header class="absolute top-6 left-6 md:top-8 md:left-10 z-20">
       <p class="font-display text-[10px] md:text-xs tracking-[0.35em] text-gold-dim/80 uppercase select-none">
@@ -692,7 +821,7 @@
       <div class="card-track" id="card-track"></div>
     </section>
 
-    <footer class="pb-10 md:pb-14 pt-2 text-center flex-shrink-0">
+    <footer class="welcome-footer pb-10 md:pb-14 pt-2 text-center flex-shrink-0">
       <p class="hint-text font-display text-[11px] md:text-xs tracking-[0.28em] text-stone-500/50 select-none">
         — 点击任意卡牌，开启测试 —
       </p>
@@ -934,6 +1063,12 @@
       const now = Date.now() / 1000;
       const viewCenter = window.innerWidth / 2;
 
+      const compactHome = window.innerWidth < 768;
+      const floatAmp = compactHome ? 3 : 7;
+      const staggerAmp = compactHome ? 1 : 2.5;
+      const hoverLiftAmt = compactHome ? -7 : -16;
+      const hoverScaleAmt = compactHome ? 1.06 : 1.12;
+
       cards.forEach((card, i) => {
         const rect = card.getBoundingClientRect();
         const cardCenter = rect.left + rect.width / 2;
@@ -942,10 +1077,10 @@
         const depthOpacity = 1 - distNorm * 0.22;
 
         const isHovered = card.classList.contains('hovered');
-        const floatY = Math.sin(now * (0.75 + (i % 7) * 0.07) + i * 0.55) * 7;
-        const stagger = Math.sin(now * 0.45 + i * 0.4) * 2.5;
-        const hoverLift = isHovered ? -16 : 0;
-        const hoverScale = isHovered ? 1.12 : 1;
+        const floatY = Math.sin(now * (0.75 + (i % 7) * 0.07) + i * 0.55) * floatAmp;
+        const stagger = Math.sin(now * 0.45 + i * 0.4) * staggerAmp;
+        const hoverLift = isHovered ? hoverLiftAmt : 0;
+        const hoverScale = isHovered ? hoverScaleAmt : 1;
         const scale = depthScale * hoverScale;
 
         card.style.opacity = depthOpacity;
