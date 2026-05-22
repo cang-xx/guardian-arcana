@@ -117,6 +117,15 @@ const majorArcana = [
 
 const SOUL_AXES = ['introversion', 'logic', 'stability', 'idealism'];
 
+/** 相对路径 → 绝对 URL，兼容 GitHub Pages 与本地打开 */
+function getArcanaImageUrl(card) {
+  const file = `images/${card.id}-${card.key}.jpg`;
+  if (typeof window !== 'undefined' && window.location?.href) {
+    return new URL(file, window.location.href).href;
+  }
+  return file;
+}
+
 function euclideanDistance(a, b) {
   return Math.sqrt(
     SOUL_AXES.reduce((sum, axis) => sum + (a[axis] - b[axis]) ** 2, 0)
