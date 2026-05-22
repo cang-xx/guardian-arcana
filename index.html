@@ -919,6 +919,36 @@
   <script>
     window.appState = 'welcome';
 
+    /* 兜底：GitHub 上 JS 未传全时也不致白屏 */
+    function arcanaImageUrl(card) {
+      const path = `images/${card.id}-${card.key}.jpg`;
+      try {
+        return new URL(path, window.location.href).href;
+      } catch {
+        return path;
+      }
+    }
+
+    function arcanaDisplay(card) {
+      if (typeof getArcanaDisplay === 'function') return getArcanaDisplay(card);
+      const roman = (typeof ARCANA_ROMAN !== 'undefined' && ARCANA_ROMAN[card.id]) || String(card.id);
+      return {
+        titleLine: `${roman}. ${(card.nameEn || '').toUpperCase()}｜${card.nameZh || ''}`,
+        oracle: `你的守护牌灵是「${card.nameZh || card.nameEn}」。`,
+      };
+    }
+
+    (function checkRequiredScripts() {
+      const missing = [];
+      if (typeof oracleQuestions === 'undefined') missing.push('oracle-questions.js');
+      if (typeof majorArcana === 'undefined') missing.push('major-arcana.js');
+      if (typeof findGuardianArcana === 'undefined') missing.push('major-arcana.js');
+      if (typeof getArcanaDisplay === 'undefined') missing.push('arcana-oracles.js');
+      if (missing.length) {
+        console.error('[Arcana] 缺少脚本文件，请上传到 GitHub：', [...new Set(missing)].join(', '));
+      }
+    })();
+
     const CARD_BACK_SRC = 'assets/card-back.png';
 
     (function preloadCardBack() {
@@ -1351,7 +1381,7 @@
     let guardianImageCache = { url: null, ready: false };
 
     function preloadGuardianImage(card) {
-      const url = getArcanaImageUrl(card);
+      const url = arcanaImageUrl(card);
       if (guardianImageCache.url === url && guardianImageCache.ready) {
         return Promise.resolve(guardianImageCache.img);
       }
@@ -1380,20 +1410,41 @@
     }
 
     function resolveGuardianArcana() {
+      if (typeof findGuardianArcana !== 'function') {
+        console.error('[Arcana] findGuardianArcana 未定义，请上传 major-arcana.js');
+        return null;
+      }
       const result = findGuardianArcana(window.soulScores);
       window.guardianArcana = result;
-      preloadGuardianImage(result.card);
+      if (result?.card) {
+        preloadGuardianImage(result.card).catch(() => {});
+      }
       return result;
     }
 
     function beginShuffleRitual() {
       window.appState = 'shuffling';
-      buildShuffleDeck();
-      resolveGuardianArcana();
+
+      const welcome = document.getElementById('welcome-layer');
+      if (welcome) welcome.style.display = 'none';
+      quizContainer.style.display = 'none';
+      quizContainer.classList.remove('visible', 'quiz-fade-out');
 
       loadingScreen.classList.add('active');
-      loadingScreen.classList.remove('dissolving');
+      loadingScreen.classList.remove('dissolving', 'ritual-out');
       loadingScreen.setAttribute('aria-busy', 'true');
+
+      try {
+        buildShuffleDeck();
+      } catch (err) {
+        console.error('[Arcana] buildShuffleDeck failed', err);
+      }
+
+      try {
+        resolveGuardianArcana();
+      } catch (err) {
+        console.error('[Arcana] resolveGuardianArcana failed', err);
+      }
 
       startCaptionCycle();
       shuffleIntervalId = setInterval(tickShuffleAnimation, 380);
@@ -1405,16 +1456,17 @@
         setTimeout(() => {
           loadingScreen.classList.remove('active', 'ritual-out', 'dissolving');
           loadingScreen.setAttribute('aria-busy', 'false');
-          quizContainer.style.display = 'none';
           showResultScreen();
 
-          console.log('Soul Oracle Complete — Final Scores:', { ...window.soulScores });
-          console.log('Guardian Arcana Matched:', {
-            id: window.guardianArcana.card.id,
-            nameEn: window.guardianArcana.card.nameEn,
-            nameZh: window.guardianArcana.card.nameZh,
-            distance: window.guardianArcana.distance.toFixed(2),
-          });
+          if (window.guardianArcana?.card) {
+            console.log('Soul Oracle Complete — Final Scores:', { ...window.soulScores });
+            console.log('Guardian Arcana Matched:', {
+              id: window.guardianArcana.card.id,
+              nameEn: window.guardianArcana.card.nameEn,
+              nameZh: window.guardianArcana.card.nameZh,
+              distance: window.guardianArcana.distance.toFixed(2),
+            });
+          }
         }, 1000);
       }, SHUFFLE_DURATION_MS);
     }
@@ -1430,26 +1482,34 @@
     }
 
     function showResultScreen() {
-      const card = window.guardianArcana?.card;
-      if (!card) return;
+      let card = window.guardianArcana?.card;
+      if (!card && typeof findGuardianArcana === 'function') {
+        window.guardianArcana = findGuardianArcana(window.soulScores);
+        card = window.guardianArcana?.card;
+      }
+      if (!card) {
+        console.error('[Arcana] 无法匹配牌灵，请确认 major-arcana.js 已上传');
+        resultScreen.classList.add('visible');
+        window.appState = 'reveal';
+        return;
+      }
 
-      resetResultScreen();
-      const display = getArcanaDisplay(card);
+      try {
+        resetResultScreen();
+        const display = arcanaDisplay(card);
+        const imageUrl = arcanaImageUrl(card);
+        guardianFrontImg.alt = display.titleLine;
+        resultCardTitle.textContent = display.titleLine;
+        resultOracle.textContent = display.oracle;
 
-      const imageUrl = getArcanaImageUrl(card);
-      guardianFrontImg.alt = `${display.titleLine}`;
-      resultCardTitle.textContent = display.titleLine;
-      resultOracle.textContent = display.oracle;
-
-      if (guardianImageCache.url === imageUrl && guardianImageCache.ready) {
-        guardianFrontImg.src = imageUrl;
-      } else {
-        guardianFrontImg.removeAttribute('src');
-        preloadGuardianImage(card).then(() => {
+        if (guardianImageCache.url === imageUrl && guardianImageCache.ready) {
           guardianFrontImg.src = imageUrl;
-        }).catch(() => {
+        } else {
           guardianFrontImg.src = imageUrl;
-        });
+          preloadGuardianImage(card).catch(() => {});
+        }
+      } catch (err) {
+        console.error('[Arcana] showResultScreen failed', err);
       }
 
       requestAnimationFrame(() => {
